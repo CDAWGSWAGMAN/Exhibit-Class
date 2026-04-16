@@ -7,7 +7,7 @@ let motionRunning = false;
 let audioEnabled = false;
 
 let appStage = "welcome";
-// welcome | visual1 | visual2 | audio | reveal | sandbox
+// welcome | visual1 | audio | reveal | sandbox
 
 let synth;
 let gainNode;
@@ -46,7 +46,6 @@ let exhibitMode = 0;
 const modeNames = ["Visual Only", "Audio Only", "Visual + Audio"];
 
 let visual1Guess = null;
-let visual2Guess = null;
 let audioGuess = null;
 let lastPlayedSignal = null;
 
@@ -123,29 +122,37 @@ function setupControls() {
   objectSelect.option("Mars");
   objectSelect.option("Comet");
   objectSelect.option("Asteroid");
-  objectSelect.changed(() => applyPreset(objectSelect.value()));
+  objectSelect.changed(() => {
+    applyPreset(objectSelect.value());
+    refreshSoundFromCurrentState();
+  });
 
   createControl(panel, "Orbit Shape");
   eccentricitySlider = createSlider(0.0, 0.8, 0.08, 0.01);
   eccentricitySlider.parent(panel);
+  eccentricitySlider.input(() => refreshSoundFromCurrentState());
 
   createControl(panel, "Pitch from Speed");
   pitchSlider = createSlider(0, 220, 95, 1);
   pitchSlider.parent(panel);
+  pitchSlider.input(() => refreshSoundFromCurrentState());
 
   createControl(panel, "Volume from Distance");
   volumeSlider = createSlider(0, 1, 0.58, 0.01);
   volumeSlider.parent(panel);
+  volumeSlider.input(() => refreshSoundFromCurrentState());
 
   createControl(panel, "Pan from Position");
   panSlider = createSlider(0, 1, 0.9, 0.01);
   panSlider.parent(panel);
+  panSlider.input(() => refreshSoundFromCurrentState());
 
   createControl(panel, "Orbit Speed");
   speedSlider = createSlider(0.2, 3, 1, 0.01);
   speedSlider.parent(panel);
+  speedSlider.input(() => refreshSoundFromCurrentState());
 
-  modeButton = createButton("Switch Comparison Mode");
+  modeButton = createButton("Change Exploration Mode");
   modeButton.parent(panel);
   modeButton.addClass("panel-btn");
   modeButton.mousePressed(cycleMode);
@@ -204,37 +211,19 @@ function setupStageUI() {
 
       case "guess_visual1_A":
         visual1Guess = "A";
-        setFeedback("You chose A. Now try a different visual form.");
-        appStage = "visual2";
+        setFeedback("You chose A. Now try listening.");
+        appStage = "audio";
         break;
 
       case "guess_visual1_B":
         visual1Guess = "B";
-        setFeedback("You chose B. Now see whether another visual makes the anomaly clearer.");
-        appStage = "visual2";
+        setFeedback("You chose B. Now try listening.");
+        appStage = "audio";
         break;
 
       case "guess_visual1_unsure":
         visual1Guess = "Unsure";
-        setFeedback("That's fair. Try one more visual representation.");
-        appStage = "visual2";
-        break;
-
-      case "guess_visual2_A":
-        visual2Guess = "A";
-        setFeedback("You made a choice. Now try listening.");
-        appStage = "audio";
-        break;
-
-      case "guess_visual2_B":
-        visual2Guess = "B";
-        setFeedback("You made a choice. Now try listening.");
-        appStage = "audio";
-        break;
-
-      case "guess_visual2_unsure":
-        visual2Guess = "Unsure";
-        setFeedback("Still unclear visually. Now compare the audio.");
+        setFeedback("That’s fair. Now compare the audio.");
         appStage = "audio";
         break;
 
@@ -295,19 +284,15 @@ function updateProgressTracker() {
   tracker.style.display = "flex";
 
   if (appStage === "visual1") {
-    step.textContent = "Step 1 of 4";
+    step.textContent = "Step 1 of 3";
     label.textContent = "Visual";
-    fill.style.width = "25%";
-  } else if (appStage === "visual2") {
-    step.textContent = "Step 2 of 4";
-    label.textContent = "Telemetry";
-    fill.style.width = "50%";
+    fill.style.width = "33%";
   } else if (appStage === "audio") {
-    step.textContent = "Step 3 of 4";
+    step.textContent = "Step 2 of 3";
     label.textContent = "Audio";
-    fill.style.width = "75%";
+    fill.style.width = "66%";
   } else if (appStage === "reveal") {
-    step.textContent = "Step 4 of 4";
+    step.textContent = "Step 3 of 3";
     label.textContent = "Reveal";
     fill.style.width = "100%";
   }
@@ -320,8 +305,17 @@ function renderStageCard() {
   const hint = document.getElementById("stageHint");
   const buttons = document.getElementById("stageButtons");
   const feedback = document.getElementById("stageFeedback");
+  const stageOverlay = document.getElementById("stageOverlay");
 
   feedback.textContent = "";
+
+  stageOverlay.classList.remove("centered", "bottom");
+
+  if (appStage === "welcome") {
+    stageOverlay.classList.add("centered");
+  } else {
+    stageOverlay.classList.add("bottom");
+  }
 
   if (appStage === "sandbox") {
     document.getElementById("stageOverlay").style.display = "none";
@@ -357,23 +351,9 @@ function renderStageCard() {
     `;
   }
 
-  if (appStage === "visual2") {
-    eyebrow.textContent = "Signal Comparison";
-    title.textContent = "Attempt 2: Telemetry View";
-    body.textContent =
-      "Now look at the same event as time-based data. Can you tell more clearly which signal contains the anomaly?";
-    hint.textContent =
-      "Try again, even if you are unsure. This step is about discovering the limits of visual inspection.";
-    buttons.innerHTML = `
-      ${choiceButton("Option A", "Choose Signal A", "Telemetry makes A look more unusual.", "guess_visual2_A", true)}
-      ${choiceButton("Option B", "Choose Signal B", "Telemetry makes B look more unusual.", "guess_visual2_B", true)}
-      ${choiceButton("Fallback", "Not Sure", "The visual evidence is still subtle.", "guess_visual2_unsure")}
-    `;
-  }
-
   if (appStage === "audio") {
     eyebrow.textContent = "Sonification Test";
-    title.textContent = "Attempt 3: Listen";
+    title.textContent = "Attempt 2: Listen";
     body.textContent =
       "Now listen to each signal. Which one contains the anomaly?";
     hint.textContent =
@@ -399,7 +379,7 @@ function renderStageCard() {
     hint.textContent =
       "This is the core idea of the exhibit: sound can reveal patterns and anomalies that are difficult to decipher with visuals alone.";
     buttons.innerHTML = `
-      ${choiceButton("Next", "Enter Interactive Exhibit", "Move from the guided sequence into exploration.", "reveal_continue")}
+      ${choiceButton("Next", "Enter Sandbox", "Now explore the system freely and make your own observations.", "reveal_continue")}
       ${choiceButton("Reset", "Back to Home", "Restart the full guided experience.", "restart_home", true)}
     `;
   }
@@ -419,6 +399,7 @@ function enterSandbox() {
 
   updateExhibitText();
   updateModeAudioState();
+  refreshSoundFromCurrentState();
   updateProgressTracker();
 }
 
@@ -432,7 +413,6 @@ function returnHome() {
   exhibitMode = 0;
 
   visual1Guess = null;
-  visual2Guess = null;
   audioGuess = null;
   lastPlayedSignal = null;
 
@@ -582,12 +562,25 @@ function applyPreset(name) {
 
   if (eccentricitySlider) eccentricitySlider.value(obj.e);
   trail = [];
+
+  refreshSoundFromCurrentState();
+}
+
+function refreshSoundFromCurrentState() {
+  if (!started || !audioEnabled || exhibitMode === 0) return;
+
+  const cx = width * 0.42;
+  const cy = height * 0.5;
+  const pos = getOrbitPosition(cx, cy);
+
+  updateSound(pos);
 }
 
 function startAudio() {
   if (!started || !gainNode) return;
   audioEnabled = true;
   updateModeAudioState();
+  refreshSoundFromCurrentState();
 }
 
 function stopAudio() {
@@ -602,6 +595,7 @@ function cycleMode() {
   exhibitMode = (exhibitMode + 1) % 3;
   updateExhibitText();
   updateModeAudioState();
+  refreshSoundFromCurrentState();
 }
 
 function updateExhibitText() {
@@ -613,19 +607,19 @@ function updateExhibitText() {
 
   if (exhibitMode === 0) {
     challengeText.textContent =
-      "Start by watching the orbit. Can you tell exactly when the object speeds up most near the sun using visuals alone?";
+      "Use visual mode to study the shape of the orbit, the path of the object, and how motion changes across space.";
     whyItMatters.textContent =
-      "Visuals show motion, but subtle changes over time can be hard to judge precisely with sight alone.";
+      "Visual exploration helps you notice position, shape, and movement at a glance.";
   } else if (exhibitMode === 1) {
     challengeText.textContent =
-      "Now listen without the orbit visible. Can you hear when the object speeds up, gets closer, or shifts position?";
+      "Use audio mode to listen for shifts in pitch, loudness, and stereo movement as the object travels.";
     whyItMatters.textContent =
-      "Audio can make motion, intensity, and timing easier to notice, even when visual detail is removed.";
+      "Listening can make subtle timing and motion changes easier to notice over time.";
   } else {
     challengeText.textContent =
-      "Now combine sight and sound. Which moments become easiest to understand when both work together?";
+      "Use both visual and audio together to compare what each mode reveals. Try changing the orbit and see what becomes more obvious.";
     whyItMatters.textContent =
-      "Sonification matters because it adds another channel for understanding change, helping patterns stand out more clearly.";
+      "Combining sight and sound creates a richer way to explore patterns in motion.";
   }
 }
 
@@ -651,9 +645,9 @@ function updateModeAudioState() {
     if (ambientGain) ambientGain.gain.rampTo(0, 0.8);
     if (noiseGain) noiseGain.gain.rampTo(0, 0.8);
   } else {
-    gainNode.gain.rampTo(0.28, 0.3);
-    if (ambientGain) ambientGain.gain.rampTo(0.12, 1.2);
-    if (noiseGain) noiseGain.gain.rampTo(0.05, 1.2);
+    gainNode.gain.rampTo(0.28, 0.1);
+    if (ambientGain) ambientGain.gain.rampTo(0.12, 0.3);
+    if (noiseGain) noiseGain.gain.rampTo(0.05, 0.3);
   }
 }
 
@@ -662,11 +656,6 @@ function draw() {
 
   if (appStage === "visual1") {
     drawVisualComparisonOrbit();
-    return;
-  }
-
-  if (appStage === "visual2") {
-    drawVisualComparisonTelemetry();
     return;
   }
 
@@ -714,7 +703,7 @@ function drawWelcomeBackdrop() {
 function drawVisualComparisonOrbit() {
   const leftX = width * 0.32;
   const rightX = width * 0.68;
-  const cy = height * 0.40;
+  const cy = height * 0.32;
   const a = 170;
   const e = 0.12;
 
@@ -724,7 +713,7 @@ function drawVisualComparisonOrbit() {
   fill(220, 235, 255, 170);
   textAlign(CENTER, CENTER);
   textSize(15);
-  text("Orbit traces look nearly identical.", width / 2, height * 0.75);
+  text("Orbit traces look nearly identical.", width / 2, height * 0.72);
 }
 
 function drawOrbitPanel(cx, cy, a, e, disturbed, label) {
@@ -743,10 +732,12 @@ function drawOrbitPanel(cx, cy, a, e, disturbed, label) {
       let rr = (a * (1 - e * e)) / (1 + e * cos(t));
       let px = cx + rr * cos(t);
       let py = cy + rr * sin(t) * 0.75;
-      if (t > 1.0 && t < 1.45) {
-        py += sin(t * 18) * 3;
-        px += sin(t * 12) * 1.5;
+
+      if (t > 1.12 && t < 1.28) {
+        py += sin(t * 18) * 1.1;
+        px += sin(t * 12) * 0.35;
       }
+
       vertex(px, py);
     }
     endShape(CLOSE);
@@ -759,14 +750,40 @@ function drawOrbitPanel(cx, cy, a, e, disturbed, label) {
   fill(disturbed ? color(255, 205, 205) : color(170, 235, 255));
   textAlign(CENTER, CENTER);
   textSize(18);
-  text(label, cx, cy - 150);
+  text(label, cx, cy - 165);
 }
 
-function drawVisualComparisonTelemetry() {
+function drawAudioChallengeView() {
+  const cx = width / 2;
+  const cy = height * 0.32;
+
+  noFill();
+  stroke(120, 150, 255, 55);
+  strokeWeight(1.5);
+  ellipse(cx, cy, 360, 270);
+
+  noStroke();
+  fill(255, 210, 90, 230);
+  circle(cx, cy, 34);
+  fill(255, 210, 90, 45);
+  circle(cx, cy, 78);
+
+  fill(220, 235, 255, 180);
+  textAlign(CENTER, CENTER);
+  textSize(18);
+  text("Listen for a brief wobble or irregular pulse.", width / 2, height * 0.68);
+}
+
+function drawRevealView() {
+  fill(220, 235, 255, 180);
+  textAlign(CENTER, CENTER);
+  textSize(20);
+  text("The anomaly becomes clearer when heard over time.", width / 2, height * 0.18);
+
   const graphX = width * 0.12;
-  const graphY = height * 0.20;
+  const graphY = height * 0.12;
   const graphW = width * 0.76;
-  const graphH = height * 0.45;
+  const graphH = height * 0.34;
 
   noStroke();
   fill(8, 15, 30, 160);
@@ -813,37 +830,7 @@ function drawVisualComparisonTelemetry() {
   fill(220, 235, 255, 170);
   textAlign(CENTER, CENTER);
   textSize(15);
-  text("Even as telemetry, the anomaly is still subtle.", width / 2, height * 0.74);
-}
-
-function drawAudioChallengeView() {
-  const cx = width / 2;
-  const cy = height * 0.42;
-
-  noFill();
-  stroke(120, 150, 255, 55);
-  strokeWeight(1.5);
-  ellipse(cx, cy, 360, 270);
-
-  noStroke();
-  fill(255, 210, 90, 230);
-  circle(cx, cy, 34);
-  fill(255, 210, 90, 45);
-  circle(cx, cy, 78);
-
-  fill(220, 235, 255, 180);
-  textAlign(CENTER, CENTER);
-  textSize(18);
-  text("Listen for a brief wobble or irregular pulse.", width / 2, height * 0.72);
-}
-
-function drawRevealView() {
-  fill(220, 235, 255, 180);
-  textAlign(CENTER, CENTER);
-  textSize(20);
-  text("The anomaly becomes clearer when heard over time.", width / 2, height * 0.25);
-
-  drawVisualComparisonTelemetry();
+  text("The anomaly is subtle visually, but easier to confirm through sound.", width / 2, height * 0.52);
 }
 
 function drawSandbox() {
@@ -855,20 +842,20 @@ function drawSandbox() {
 
   if (motionRunning) {
     updateOrbit(pos.rNorm);
+  }
 
-    if (audioEnabled && exhibitMode !== 0) {
-      updateSound(pos);
-    }
+  if (audioEnabled && exhibitMode !== 0) {
+    updateSound(pos);
   }
 
   if (ambientOsc && audioEnabled) {
     let slowDrift = 55 + sin(frameCount * 0.002) * 4;
-    ambientOsc.frequency.rampTo(slowDrift, 0.5);
+    ambientOsc.frequency.rampTo(slowDrift, 0.2);
   }
 
   if (noiseFilter && audioEnabled) {
     let filterDrift = 400 + sin(frameCount * 0.003) * 120;
-    noiseFilter.frequency.rampTo(filterDrift, 0.5);
+    noiseFilter.frequency.rampTo(filterDrift, 0.2);
   }
 
   if (exhibitMode !== 1) {
@@ -918,16 +905,17 @@ function updateSound(pos) {
 
   const freq =
     orbit.baseFreq + pos.speedApprox * pitchAmount + sin(frameCount * 0.01) * 3;
+
   const targetVol = 0.08 + (1 - pos.rNorm) * volumeAmount * 0.45;
   const targetPan = pos.xNorm * panAmount;
   const filterFreq = map(pos.speedApprox, 0, 1.2, 500, 1800);
 
-  synth.frequency.rampTo(freq, 0.08);
-  panner.pan.rampTo(targetPan, 0.12);
-  filterNode.frequency.rampTo(filterFreq, 0.12);
+  synth.frequency.rampTo(freq, 0.03);
+  panner.pan.rampTo(targetPan, 0.04);
+  filterNode.frequency.rampTo(filterFreq, 0.04);
 
   if (audioEnabled && exhibitMode !== 0) {
-    gainNode.gain.rampTo(targetVol, 0.12);
+    gainNode.gain.rampTo(targetVol, 0.04);
   }
 }
 
